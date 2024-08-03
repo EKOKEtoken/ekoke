@@ -5,17 +5,17 @@ use did::ekoke::Ekoke;
 use did::ID;
 
 #[cfg(not(test))]
-pub fn ekoke_client(principal: Principal) -> IcEkokeClient {
-    IcEkokeClient { principal }
+pub fn ekoke_reward_pool_client(principal: Principal) -> IcEkokeRewardPoolClient {
+    IcEkokeRewardPoolClient { principal }
 }
 
 #[cfg(test)]
-pub fn ekoke_client(_principal: Principal) -> IcEkokeClient {
-    IcEkokeClient
+pub fn ekoke_reward_pool_client(_principal: Principal) -> IcEkokeRewardPoolClient {
+    IcEkokeRewardPoolClient
 }
 
 #[async_trait]
-pub trait EkokeClient {
+pub trait EkokeRewardPoolClient {
     /// Get contract reward. Returns $ekoke
     async fn get_contract_reward(
         &self,
@@ -26,17 +26,17 @@ pub trait EkokeClient {
 
 #[cfg(not(test))]
 /// Ekoke canister client
-pub struct IcEkokeClient {
+pub struct IcEkokeRewardPoolClient {
     principal: Principal,
 }
 
 #[cfg(test)]
 #[derive(Default)]
-pub struct IcEkokeClient;
+pub struct IcEkokeRewardPoolClient;
 
 #[cfg(not(test))]
 #[async_trait]
-impl EkokeClient for IcEkokeClient {
+impl EkokeRewardPoolClient for IcEkokeRewardPoolClient {
     /// Get contract reward. Returns $ekoke
     async fn get_contract_reward(
         &self,
@@ -58,7 +58,7 @@ impl EkokeClient for IcEkokeClient {
 
 #[cfg(test)]
 #[async_trait]
-impl EkokeClient for IcEkokeClient {
+impl EkokeRewardPoolClient for IcEkokeRewardPoolClient {
     /// Get contract reward. Returns $ekoke
     async fn get_contract_reward(
         &self,

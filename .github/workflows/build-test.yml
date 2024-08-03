@@ -25,20 +25,19 @@ jobs:
           sudo mv /tmp/cargo-make-v0.37.5-x86_64-unknown-linux-gnu/cargo-make $HOME/.cargo/bin/cargo-make && \
           sudo chmod +x $HOME/.cargo/bin/cargo-make
       - name: Install dfx
-        run: |
-          DFXVM_INIT_YES=1 sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
-          sudo cp $HOME/.local/share/dfx/bin/* /usr/bin
-          dfx extension install sns
+        uses: dfinity/setup-dfx@main
+      - name: Install SNS
+        run: dfx extension install sns
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
           components: rustfmt, clippy
           target: wasm32-unknown-unknown
-      - name: Set Node.js 18.x
+      - name: Set Node.js 20.x
         uses: actions/setup-node@v3
         with:
-          node-version: 18.x
+          node-version: 20.x
       - name: build
         run: cargo make dfx-setup && cargo make dfx-build
       - name: Unit Tests

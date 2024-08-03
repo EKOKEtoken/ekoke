@@ -43,6 +43,7 @@ type EkokeError = variant {
 type EkokeLiquidityPoolInitData = record {
   icp_ledger_canister : principal;
   admins : vec principal;
+  deferred_canister_id : principal;
 };
 type HttpRequest = record {
   url : text;
@@ -70,6 +71,7 @@ type RejectionCode = variant {
   CanisterReject;
 };
 type Result = variant { Ok : LiquidityPoolBalance; Err : EkokeError };
+type Result_1 = variant { Ok; Err : TransferError };
 type TransferError = variant {
   GenericError : record { message : text; error_code : nat };
   TemporarilyUnavailable;
@@ -94,8 +96,10 @@ type TransferFromError = variant {
 service : (EkokeLiquidityPoolInitData) -> {
   admin_cycles : () -> (nat) query;
   admin_set_admins : (vec principal) -> ();
+  admin_set_deferred_canister : (principal) -> ();
   admin_set_icp_ledger_canister : (principal) -> ();
   http_request : (HttpRequest) -> (HttpResponse) query;
   liquidity_pool_accounts : () -> (LiquidityPoolAccounts) query;
   liquidity_pool_balance : () -> (Result) query;
+  refund_investors : (vec record { principal; nat }) -> (Result_1);
 }

@@ -2,6 +2,7 @@ use candid::{Encode, Nat, Principal};
 use did::deferred::{Agency, Contract, ContractRegistration, DeferredResult, TokenInfo};
 use did::ID;
 use dip721_rs::{GenericValue, NftError, TokenIdentifier, TokenMetadata};
+use icrc::icrc1::account::Subaccount;
 
 use crate::actor::{admin, alice};
 use crate::TestEnv;
@@ -47,6 +48,39 @@ impl<'a> DeferredClient<'a> {
                 admin(),
                 "sign_contract",
                 Encode!(&id).unwrap(),
+            )
+            .unwrap();
+
+        res
+    }
+
+    pub fn withdraw_contract_deposit(
+        &self,
+        caller: Principal,
+        contract_id: ID,
+        subaccount: Option<Subaccount>,
+    ) -> DeferredResult<()> {
+        let res: DeferredResult<()> = self
+            .env
+            .update(
+                self.env.deferred_id,
+                caller,
+                "withdraw_contract_deposit",
+                Encode!(&contract_id, &subaccount).unwrap(),
+            )
+            .unwrap();
+
+        res
+    }
+
+    pub fn close_contract(&self, caller: Principal, contract_id: ID) -> DeferredResult<()> {
+        let res: DeferredResult<()> = self
+            .env
+            .update(
+                self.env.deferred_id,
+                caller,
+                "close_contract",
+                Encode!(&contract_id).unwrap(),
             )
             .unwrap();
 

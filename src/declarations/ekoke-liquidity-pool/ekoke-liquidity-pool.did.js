@@ -2,6 +2,7 @@ export const idlFactory = ({ IDL }) => {
   const EkokeLiquidityPoolInitData = IDL.Record({
     'icp_ledger_canister' : IDL.Principal,
     'admins' : IDL.Vec(IDL.Principal),
+    'deferred_canister_id' : IDL.Principal,
   });
   const HttpRequest = IDL.Record({
     'url' : IDL.Text,
@@ -116,9 +117,11 @@ export const idlFactory = ({ IDL }) => {
     'Ok' : LiquidityPoolBalance,
     'Err' : EkokeError,
   });
+  const Result_1 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : TransferError });
   return IDL.Service({
     'admin_cycles' : IDL.Func([], [IDL.Nat], ['query']),
     'admin_set_admins' : IDL.Func([IDL.Vec(IDL.Principal)], [], []),
+    'admin_set_deferred_canister' : IDL.Func([IDL.Principal], [], []),
     'admin_set_icp_ledger_canister' : IDL.Func([IDL.Principal], [], []),
     'http_request' : IDL.Func([HttpRequest], [HttpResponse], ['query']),
     'liquidity_pool_accounts' : IDL.Func(
@@ -127,12 +130,18 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'liquidity_pool_balance' : IDL.Func([], [Result], ['query']),
+    'refund_investors' : IDL.Func(
+        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat))],
+        [Result_1],
+        [],
+      ),
   });
 };
 export const init = ({ IDL }) => {
   const EkokeLiquidityPoolInitData = IDL.Record({
     'icp_ledger_canister' : IDL.Principal,
     'admins' : IDL.Vec(IDL.Principal),
+    'deferred_canister_id' : IDL.Principal,
   });
   return [EkokeLiquidityPoolInitData];
 };

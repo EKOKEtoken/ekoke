@@ -1,8 +1,10 @@
 export const idlFactory = ({ IDL }) => {
   const GenericValue = IDL.Rec();
   const DeferredInitData = IDL.Record({
+    'icp_ledger_canister' : IDL.Principal,
     'custodians' : IDL.Vec(IDL.Principal),
     'ekoke_reward_pool_canister' : IDL.Principal,
+    'liquidity_pool_canister' : IDL.Principal,
     'marketplace_canister' : IDL.Principal,
   });
   const Continent = IDL.Variant({
@@ -133,24 +135,50 @@ export const idlFactory = ({ IDL }) => {
     'Icrc2Transfer' : TransferFromError,
     'Ecdsa' : EcdsaError,
   });
+  const WithdrawError = IDL.Variant({
+    'InvalidTransferAmount' : IDL.Tuple(IDL.Nat64, IDL.Nat8),
+    'ContractNotFound' : IDL.Nat,
+    'DepositTransferFailed' : TransferError,
+    'ContractNotPaid' : IDL.Nat,
+  });
   const ConfigurationError_1 = IDL.Variant({
     'CustodialsCantBeEmpty' : IDL.Null,
     'AnonymousCustodial' : IDL.Null,
+  });
+  const CloseContractError = IDL.Variant({
+    'ContractPaid' : IDL.Nat,
+    'LiquidityPoolHasNotEnoughIcp' : IDL.Record({
+      'available' : IDL.Nat,
+      'required' : IDL.Nat,
+    }),
+    'ContractNotFound' : IDL.Nat,
+    'ContractNotExpired' : IDL.Nat,
+    'RefundInvestors' : TransferError,
+    'DepositTransferFailed' : TransferError,
   });
   const TokenError = IDL.Variant({
     'ContractAlreadySigned' : IDL.Nat,
     'ContractValueIsNotMultipleOfInstallments' : IDL.Null,
     'TokenAlreadyExists' : IDL.Nat,
+    'BadBuyerDepositAccount' : IDL.Null,
     'TokensMismatch' : IDL.Null,
     'ContractAlreadyExists' : IDL.Nat,
     'ContractTokensShouldBeEmpty' : IDL.Null,
     'TokenDoesNotBelongToContract' : IDL.Nat,
+    'DepositAllowanceExpired' : IDL.Null,
     'TokenNotFound' : IDL.Nat,
+    'DepositAllowanceNotEnough' : IDL.Record({
+      'available' : IDL.Nat,
+      'required' : IDL.Nat,
+    }),
     'ContractSellerQuotaIsNot100' : IDL.Null,
+    'DepositRejected' : TransferFromError,
     'ContractNotFound' : IDL.Nat,
     'CannotCloseContract' : IDL.Null,
+    'ContractValueIsLessThanDeposit' : IDL.Null,
     'ContractNotSigned' : IDL.Nat,
     'ContractHasNoSeller' : IDL.Null,
+    'ContractHasNoBuyer' : IDL.Null,
     'BadContractExpiration' : IDL.Null,
     'ContractHasNoTokens' : IDL.Null,
     'TokenIsBurned' : IDL.Nat,
@@ -160,7 +188,9 @@ export const idlFactory = ({ IDL }) => {
   const DeferredError = IDL.Variant({
     'Nft' : NftError,
     'Ekoke' : EkokeError,
+    'Withdraw' : WithdrawError,
     'Configuration' : ConfigurationError_1,
+    'CloseContract' : CloseContractError,
     'Unauthorized' : IDL.Null,
     'Token' : TokenError,
     'StorageError' : IDL.Null,
@@ -254,6 +284,10 @@ export const idlFactory = ({ IDL }) => {
     'value' : GenericValue,
     'access_list' : IDL.Vec(RestrictionLevel),
   });
+  const Deposit = IDL.Record({
+    'value_fiat' : IDL.Nat64,
+    'value_icp' : IDL.Nat64,
+  });
   const Seller = IDL.Record({
     'principal' : IDL.Principal,
     'quota' : IDL.Nat8,
@@ -266,6 +300,7 @@ export const idlFactory = ({ IDL }) => {
     'agency' : IDL.Opt(Agency),
     'restricted_properties' : IDL.Vec(IDL.Tuple(IDL.Text, RestrictedProperty)),
     'properties' : IDL.Vec(IDL.Tuple(IDL.Text, GenericValue)),
+    'deposit' : Deposit,
     'sellers' : IDL.Vec(Seller),
     'expiration' : IDL.Opt(IDL.Text),
     'tokens' : IDL.Vec(IDL.Nat),
@@ -304,24 +339,39 @@ export const idlFactory = ({ IDL }) => {
     'upgrade' : IDL.Opt(IDL.Bool),
     'status_code' : IDL.Nat16,
   });
+  const Account = IDL.Record({
+    'owner' : IDL.Principal,
+    'subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+  });
+  const Buyers = IDL.Record({
+    'deposit_account' : Account,
+    'principals' : IDL.Vec(IDL.Principal),
+  });
   const ContractRegistration = IDL.Record({
     'value' : IDL.Nat64,
     'type' : ContractType,
     'restricted_properties' : IDL.Vec(IDL.Tuple(IDL.Text, RestrictedProperty)),
     'properties' : IDL.Vec(IDL.Tuple(IDL.Text, GenericValue)),
+    'deposit' : Deposit,
     'sellers' : IDL.Vec(Seller),
     'expiration' : IDL.Opt(IDL.Text),
     'currency' : IDL.Text,
     'installments' : IDL.Nat64,
-    'buyers' : IDL.Vec(IDL.Principal),
+    'buyers' : Buyers,
   });
   const Result_8 = IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : DeferredError });
   return IDL.Service({
     'admin_register_agency' : IDL.Func([IDL.Principal, Agency], [], []),
     'admin_remove_role' : IDL.Func([IDL.Principal, Role], [Result], []),
+    'admin_set_ekoke_liquidity_pool_canister' : IDL.Func(
+        [IDL.Principal],
+        [],
+        [],
+      ),
     'admin_set_ekoke_reward_pool_canister' : IDL.Func([IDL.Principal], [], []),
     'admin_set_marketplace_canister' : IDL.Func([IDL.Principal], [], []),
     'admin_set_role' : IDL.Func([IDL.Principal, Role], [], []),
+    'close_contract' : IDL.Func([IDL.Nat], [Result], []),
     'dip721_approve' : IDL.Func([IDL.Principal, IDL.Nat], [Result_1], []),
     'dip721_balance_of' : IDL.Func([IDL.Principal], [Result_1], ['query']),
     'dip721_burn' : IDL.Func([IDL.Nat], [Result_1], []),
@@ -423,12 +473,19 @@ export const idlFactory = ({ IDL }) => {
         [Result],
         [],
       ),
+    'withdraw_contract_deposit' : IDL.Func(
+        [IDL.Nat, IDL.Opt(IDL.Vec(IDL.Nat8))],
+        [Result],
+        [],
+      ),
   });
 };
 export const init = ({ IDL }) => {
   const DeferredInitData = IDL.Record({
+    'icp_ledger_canister' : IDL.Principal,
     'custodians' : IDL.Vec(IDL.Principal),
     'ekoke_reward_pool_canister' : IDL.Principal,
+    'liquidity_pool_canister' : IDL.Principal,
     'marketplace_canister' : IDL.Principal,
   });
   return [DeferredInitData];

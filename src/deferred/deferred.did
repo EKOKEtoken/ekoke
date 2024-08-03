@@ -1,3 +1,4 @@
+type Account = record { owner : principal; subaccount : opt blob };
 type Agency = record {
   vat : text;
   region : text;
@@ -33,6 +34,15 @@ type ApproveError = variant {
   InsufficientFunds : record { balance : nat };
 };
 type BalanceError = variant { AccountNotFound; InsufficientBalance };
+type Buyers = record { deposit_account : Account; principals : vec principal };
+type CloseContractError = variant {
+  ContractPaid : nat;
+  LiquidityPoolHasNotEnoughIcp : record { available : nat; required : nat };
+  ContractNotFound : nat;
+  ContractNotExpired : nat;
+  RefundInvestors : TransferError;
+  DepositTransferFailed : TransferError;
+};
 type ConfigurationError = variant { AdminsCantBeEmpty; AnonymousAdmin };
 type ConfigurationError_1 = variant {
   CustodialsCantBeEmpty;
@@ -55,6 +65,7 @@ type Contract = record {
   agency : opt Agency;
   restricted_properties : vec record { text; RestrictedProperty };
   properties : vec record { text; GenericValue };
+  deposit : Deposit;
   sellers : vec Seller;
   expiration : opt text;
   tokens : vec nat;
@@ -68,27 +79,33 @@ type ContractRegistration = record {
   "type" : ContractType;
   restricted_properties : vec record { text; RestrictedProperty };
   properties : vec record { text; GenericValue };
+  deposit : Deposit;
   sellers : vec Seller;
   expiration : opt text;
   currency : text;
   installments : nat64;
-  buyers : vec principal;
+  buyers : Buyers;
 };
 type ContractType = variant { Sell; Financing };
 type DeferredError = variant {
   Nft : NftError;
   Ekoke : EkokeError;
+  Withdraw : WithdrawError;
   Configuration : ConfigurationError_1;
+  CloseContract : CloseContractError;
   Unauthorized;
   Token : TokenError;
   StorageError;
   CanisterCall : record { RejectionCode; text };
 };
 type DeferredInitData = record {
+  icp_ledger_canister : principal;
   custodians : vec principal;
   ekoke_reward_pool_canister : principal;
+  liquidity_pool_canister : principal;
   marketplace_canister : principal;
 };
+type Deposit = record { value_fiat : nat64; value_icp : nat64 };
 type EcdsaError = variant {
   RecoveryIdError;
   InvalidSignature;
@@ -214,16 +231,22 @@ type TokenError = variant {
   ContractAlreadySigned : nat;
   ContractValueIsNotMultipleOfInstallments;
   TokenAlreadyExists : nat;
+  BadBuyerDepositAccount;
   TokensMismatch;
   ContractAlreadyExists : nat;
   ContractTokensShouldBeEmpty;
   TokenDoesNotBelongToContract : nat;
+  DepositAllowanceExpired;
   TokenNotFound : nat;
+  DepositAllowanceNotEnough : record { available : nat; required : nat };
   ContractSellerQuotaIsNot100;
+  DepositRejected : TransferFromError;
   ContractNotFound : nat;
   CannotCloseContract;
+  ContractValueIsLessThanDeposit;
   ContractNotSigned : nat;
   ContractHasNoSeller;
+  ContractHasNoBuyer;
   BadContractExpiration;
   ContractHasNoTokens;
   TokenIsBurned : nat;
@@ -273,12 +296,20 @@ type TxEvent = record {
   details : vec record { text; GenericValue };
   caller : principal;
 };
+type WithdrawError = variant {
+  InvalidTransferAmount : record { nat64; nat8 };
+  ContractNotFound : nat;
+  DepositTransferFailed : TransferError;
+  ContractNotPaid : nat;
+};
 service : (DeferredInitData) -> {
   admin_register_agency : (principal, Agency) -> ();
   admin_remove_role : (principal, Role) -> (Result);
+  admin_set_ekoke_liquidity_pool_canister : (principal) -> ();
   admin_set_ekoke_reward_pool_canister : (principal) -> ();
   admin_set_marketplace_canister : (principal) -> ();
   admin_set_role : (principal, Role) -> ();
+  close_contract : (nat) -> (Result);
   dip721_approve : (principal, nat) -> (Result_1);
   dip721_balance_of : (principal) -> (Result_1) query;
   dip721_burn : (nat) -> (Result_1);
@@ -330,4 +361,5 @@ service : (DeferredInitData) -> {
   update_restricted_contract_property : (nat, text, RestrictedProperty) -> (
       Result,
     );
+  withdraw_contract_deposit : (nat, opt blob) -> (Result);
 }

@@ -1,5 +1,8 @@
 use candid::Nat;
-use did::deferred::{Agency, ContractRegistration, ContractType, GenericValue, Seller};
+use did::deferred::{
+    Agency, Buyers, ContractRegistration, ContractType, Deposit, GenericValue, Seller,
+};
+use icrc::icrc1::account::Account;
 use integration_tests::actor::{alice, bob};
 use integration_tests::client::DeferredClient;
 use integration_tests::TestEnv;
@@ -17,7 +20,14 @@ fn test_should_register_agency_and_be_able_to_create_contract() {
             principal: alice(),
             quota: 100,
         }],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -28,6 +38,12 @@ fn test_should_register_agency_and_be_able_to_create_contract() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     // give bob an agency
     deferred_client.admin_register_agency(

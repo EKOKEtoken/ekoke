@@ -2,6 +2,7 @@ use candid::{CandidType, Decode, Deserialize, Encode, Principal};
 pub use dip721_rs::{GenericValue, TokenIdentifier};
 use ic_stable_structures::storable::Bound;
 use ic_stable_structures::Storable;
+use icrc::icrc1::account::Account;
 use serde::Serialize;
 use time::Date;
 
@@ -38,6 +39,8 @@ pub struct Contract {
     pub initial_value: u64,
     /// Current Fiat value of the contract (to pay)
     pub value: u64,
+    /// Deposit value
+    pub deposit: Deposit,
     /// Currency symbol
     pub currency: String,
     /// Data associated to the contract
@@ -63,6 +66,11 @@ impl Contract {
                 Ok(expiration) => Ok(expiration),
                 Err(_) => Err(DeferredError::Token(TokenError::BadContractExpiration)),
             })
+    }
+
+    /// Returns the total value of the installments
+    pub fn installments_value(&self) -> u64 {
+        self.value - self.deposit.value_fiat
     }
 }
 
@@ -118,14 +126,36 @@ pub struct Seller {
     pub quota: u8,
 }
 
+/// Contract buyers principals and deposit account
+#[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize, Serialize)]
+pub struct Buyers {
+    /// List of buyers principals
+    pub principals: Vec<Principal>,
+    /// Account used to pay the down payment
+    pub deposit_account: Account,
+}
+
+/// Buyer deposit value
+#[derive(Clone, Debug, PartialEq, Eq, CandidType, Deserialize, Serialize)]
+pub struct Deposit {
+    /// The value for the deposit in FIAT currency.
+    /// Must be subtracted to `ContractRegistration::value` to get the remaining value to pay
+    pub value_fiat: u64,
+    pub value_icp: u64,
+}
+
 /// Data to be provided to register a contract
 #[derive(Clone, Debug, CandidType, Deserialize)]
 pub struct ContractRegistration {
     pub r#type: ContractType,
     pub sellers: Vec<Seller>,
-    pub buyers: Vec<Principal>,
+    pub buyers: Buyers,
+    /// Total value of the contract.
     pub value: u64,
     pub currency: String,
+    /// Buyer deposit value in $ICP
+    pub deposit: Deposit,
+    /// Must be a divisor of `value - deposit_value_fiat`
     pub installments: u64,
     pub expiration: Option<String>,
     pub properties: ContractProperties,

@@ -2,6 +2,10 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
+export interface Account {
+  'owner' : Principal,
+  'subaccount' : [] | [Uint8Array | number[]],
+}
 export interface Agency {
   'vat' : string,
   'region' : string,
@@ -36,6 +40,21 @@ export type ApproveError = {
   { 'InsufficientFunds' : { 'balance' : bigint } };
 export type BalanceError = { 'AccountNotFound' : null } |
   { 'InsufficientBalance' : null };
+export interface Buyers {
+  'deposit_account' : Account,
+  'principals' : Array<Principal>,
+}
+export type CloseContractError = { 'ContractPaid' : bigint } |
+  {
+    'LiquidityPoolHasNotEnoughIcp' : {
+      'available' : bigint,
+      'required' : bigint,
+    }
+  } |
+  { 'ContractNotFound' : bigint } |
+  { 'ContractNotExpired' : bigint } |
+  { 'RefundInvestors' : TransferError } |
+  { 'DepositTransferFailed' : TransferError };
 export type ConfigurationError = { 'AdminsCantBeEmpty' : null } |
   { 'AnonymousAdmin' : null };
 export type ConfigurationError_1 = { 'CustodialsCantBeEmpty' : null } |
@@ -55,6 +74,7 @@ export interface Contract {
   'agency' : [] | [Agency],
   'restricted_properties' : Array<[string, RestrictedProperty]>,
   'properties' : Array<[string, GenericValue]>,
+  'deposit' : Deposit,
   'sellers' : Array<Seller>,
   'expiration' : [] | [string],
   'tokens' : Array<bigint>,
@@ -68,26 +88,32 @@ export interface ContractRegistration {
   'type' : ContractType,
   'restricted_properties' : Array<[string, RestrictedProperty]>,
   'properties' : Array<[string, GenericValue]>,
+  'deposit' : Deposit,
   'sellers' : Array<Seller>,
   'expiration' : [] | [string],
   'currency' : string,
   'installments' : bigint,
-  'buyers' : Array<Principal>,
+  'buyers' : Buyers,
 }
 export type ContractType = { 'Sell' : null } |
   { 'Financing' : null };
 export type DeferredError = { 'Nft' : NftError } |
   { 'Ekoke' : EkokeError } |
+  { 'Withdraw' : WithdrawError } |
   { 'Configuration' : ConfigurationError_1 } |
+  { 'CloseContract' : CloseContractError } |
   { 'Unauthorized' : null } |
   { 'Token' : TokenError } |
   { 'StorageError' : null } |
   { 'CanisterCall' : [RejectionCode, string] };
 export interface DeferredInitData {
+  'icp_ledger_canister' : Principal,
   'custodians' : Array<Principal>,
   'ekoke_reward_pool_canister' : Principal,
+  'liquidity_pool_canister' : Principal,
   'marketplace_canister' : Principal,
 }
+export interface Deposit { 'value_fiat' : bigint, 'value_icp' : bigint }
 export type EcdsaError = { 'RecoveryIdError' : null } |
   { 'InvalidSignature' : null } |
   { 'InvalidPublicKey' : null };
@@ -218,16 +244,24 @@ export interface Token {
 export type TokenError = { 'ContractAlreadySigned' : bigint } |
   { 'ContractValueIsNotMultipleOfInstallments' : null } |
   { 'TokenAlreadyExists' : bigint } |
+  { 'BadBuyerDepositAccount' : null } |
   { 'TokensMismatch' : null } |
   { 'ContractAlreadyExists' : bigint } |
   { 'ContractTokensShouldBeEmpty' : null } |
   { 'TokenDoesNotBelongToContract' : bigint } |
+  { 'DepositAllowanceExpired' : null } |
   { 'TokenNotFound' : bigint } |
+  {
+    'DepositAllowanceNotEnough' : { 'available' : bigint, 'required' : bigint }
+  } |
   { 'ContractSellerQuotaIsNot100' : null } |
+  { 'DepositRejected' : TransferFromError } |
   { 'ContractNotFound' : bigint } |
   { 'CannotCloseContract' : null } |
+  { 'ContractValueIsLessThanDeposit' : null } |
   { 'ContractNotSigned' : bigint } |
   { 'ContractHasNoSeller' : null } |
+  { 'ContractHasNoBuyer' : null } |
   { 'BadContractExpiration' : null } |
   { 'ContractHasNoTokens' : null } |
   { 'TokenIsBurned' : bigint } |
@@ -276,12 +310,21 @@ export interface TxEvent {
   'details' : Array<[string, GenericValue]>,
   'caller' : Principal,
 }
+export type WithdrawError = { 'InvalidTransferAmount' : [bigint, number] } |
+  { 'ContractNotFound' : bigint } |
+  { 'DepositTransferFailed' : TransferError } |
+  { 'ContractNotPaid' : bigint };
 export interface _SERVICE {
   'admin_register_agency' : ActorMethod<[Principal, Agency], undefined>,
   'admin_remove_role' : ActorMethod<[Principal, Role], Result>,
+  'admin_set_ekoke_liquidity_pool_canister' : ActorMethod<
+    [Principal],
+    undefined
+  >,
   'admin_set_ekoke_reward_pool_canister' : ActorMethod<[Principal], undefined>,
   'admin_set_marketplace_canister' : ActorMethod<[Principal], undefined>,
   'admin_set_role' : ActorMethod<[Principal, Role], undefined>,
+  'close_contract' : ActorMethod<[bigint], Result>,
   'dip721_approve' : ActorMethod<[Principal, bigint], Result_1>,
   'dip721_balance_of' : ActorMethod<[Principal], Result_1>,
   'dip721_burn' : ActorMethod<[bigint], Result_1>,
@@ -340,6 +383,10 @@ export interface _SERVICE {
   >,
   'update_restricted_contract_property' : ActorMethod<
     [bigint, string, RestrictedProperty],
+    Result
+  >,
+  'withdraw_contract_deposit' : ActorMethod<
+    [bigint, [] | [Uint8Array | number[]]],
     Result
   >,
 }

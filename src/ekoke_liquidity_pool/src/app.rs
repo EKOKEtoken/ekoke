@@ -4,11 +4,14 @@ mod liquidity_pool;
 mod memory;
 mod roles;
 
+use std::collections::HashMap;
+
 use candid::{Nat, Principal};
 use did::ekoke::EkokeResult;
 use did::ekoke_liquidity_pool::{
     EkokeLiquidityPoolInitData, LiquidityPoolAccounts, LiquidityPoolBalance,
 };
+use icrc::icrc1::transfer::TransferError;
 
 use self::configuration::Configuration;
 pub use self::inspect::Inspect;
@@ -21,6 +24,7 @@ pub struct EkokeLiquidityPoolCanister;
 impl EkokeLiquidityPoolCanister {
     pub fn init(args: EkokeLiquidityPoolInitData) {
         Configuration::set_icp_ledger_canister(args.icp_ledger_canister);
+        Configuration::set_deferred_canister(args.deferred_canister_id);
         LiquidityPool::init();
         RolesManager::set_admins(args.admins).unwrap();
     }
@@ -33,6 +37,15 @@ impl EkokeLiquidityPoolCanister {
     /// Get liquidity pool accounts
     pub fn liquidity_pool_accounts() -> LiquidityPoolAccounts {
         LiquidityPool::accounts()
+    }
+
+    /// Refund investors
+    pub async fn refund_investors(refunds: HashMap<Principal, Nat>) -> Result<(), TransferError> {
+        if !Inspect::inspect_is_deferred_canister(utils::caller()) {
+            ic_cdk::trap("Unauthorized");
+        }
+
+        LiquidityPool::refund_investors(refunds).await
     }
 
     /// Returns cycles
@@ -49,6 +62,13 @@ impl EkokeLiquidityPoolCanister {
             ic_cdk::trap("Unauthorized");
         }
         Configuration::set_icp_ledger_canister(canister_id);
+    }
+
+    pub fn admin_set_deferred_canister(canister_id: Principal) {
+        if !Inspect::inspect_is_admin(utils::caller()) {
+            ic_cdk::trap("Unauthorized");
+        }
+        Configuration::set_deferred_canister(canister_id);
     }
 
     pub fn admin_set_admins(admins: Vec<Principal>) {
@@ -109,6 +129,7 @@ mod test {
         let data = EkokeLiquidityPoolInitData {
             admins: vec![caller()],
             icp_ledger_canister: caller(),
+            deferred_canister_id: caller(),
         };
         EkokeLiquidityPoolCanister::init(data);
     }

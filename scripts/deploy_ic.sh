@@ -34,7 +34,8 @@ case "$CANISTER" in
   "deferred")
     EKOKE_REWARD_POOL_PRINCIPAL=$(get_arg "ekoke-reward-pool" "$FALLBACK_CANISTER")
     MARKETPLACE_PRINCIPAL=$(get_arg "marketplace" "$FALLBACK_CANISTER")
-    deploy_deferred "reinstall" "ic" "$DEFERRED_PRINCIPAL" "$EKOKE_REWARD_POOL_PRINCIPAL" "$MARKETPLACE_PRINCIPAL" "$ADMIN_PRINCIPAL"
+    EKOKE_LIQUIDITY_POOL_PRINCIPAL=$(get_arg "ekoke-liquidity-pool" "$FALLBACK_CANISTER")
+    deploy_deferred "reinstall" "ic" "$DEFERRED_PRINCIPAL" "$EKOKE_REWARD_POOL_PRINCIPAL" "$MARKETPLACE_PRINCIPAL" "$EKOKE_LIQUIDITY_POOL_PRINCIPAL" "$ADMIN_PRINCIPAL"
     ;;
   
   "ekoke-erc20-swap")
@@ -47,7 +48,8 @@ case "$CANISTER" in
     ;;
   
   "ekoke-liquidity-pool")
-    deploy_ekoke_liquidity_pool "reinstall" "ic" "$EKOKE_LIQUIDITY_POOL_PRINCIPAL" "$ADMIN_PRINCIPAL"
+    DEFERRED_PRINCIPAL=$(get_arg "deferred" "$FALLBACK_CANISTER")
+    deploy_ekoke_liquidity_pool "reinstall" "ic" "$EKOKE_LIQUIDITY_POOL_PRINCIPAL" "$DEFERRED_PRINCIPAL" "$ADMIN_PRINCIPAL"
     ;;
 
   "ekoke-reward-pool")

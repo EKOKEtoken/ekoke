@@ -6,6 +6,7 @@ mod configuration;
 mod inspect;
 mod memory;
 mod minter;
+mod ops;
 mod roles;
 pub mod storage;
 #[cfg(test)]
@@ -15,21 +16,23 @@ use async_trait::async_trait;
 use candid::{Nat, Principal};
 use configuration::Configuration;
 use did::deferred::{
-    Agency, Contract, ContractRegistration, DeferredError, DeferredInitData, DeferredResult,
-    RestrictedContractProperties, RestrictedProperty, RestrictionLevel, Role, TokenError,
-    TokenInfo,
+    Agency, CloseContractError, Contract, ContractRegistration, DeferredError, DeferredInitData,
+    DeferredResult, RestrictedContractProperties, RestrictedProperty, RestrictionLevel, Role,
+    TokenError, TokenInfo,
 };
 use did::ID;
 use dip721_rs::{
     Dip721, GenericValue, Metadata, NftError, Stats, SupportedInterface, TokenIdentifier,
     TokenMetadata, TxEvent,
 };
+use icrc::icrc1::account::{Account, Subaccount};
+use ops::{CloseOp, DepositOp};
 
 pub use self::inspect::Inspect;
 use self::minter::Minter;
 use self::roles::RolesManager;
 use self::storage::{Agents, ContractStorage, TxHistory};
-use crate::utils::caller;
+use crate::utils::{self, caller};
 
 #[derive(Default)]
 /// Deferred canister API
@@ -42,6 +45,10 @@ impl Deferred {
         Configuration::set_ekoke_reward_pool_canister(init_data.ekoke_reward_pool_canister)
             .expect("storage error");
         Configuration::set_marketplace_canister(init_data.marketplace_canister)
+            .expect("storage error");
+        Configuration::set_icp_ledger_canister(init_data.icp_ledger_canister)
+            .expect("storage error");
+        Configuration::set_liquidity_pool_canister(init_data.liquidity_pool_canister)
             .expect("storage error");
     }
 
@@ -190,22 +197,34 @@ impl Deferred {
     /// Only a custodian can call this method.
     ///
     /// Returns the contract id
-    pub fn register_contract(data: ContractRegistration) -> DeferredResult<ID> {
+    pub async fn register_contract(data: ContractRegistration) -> DeferredResult<ID> {
         Inspect::inspect_register_contract(
             caller(),
             data.value,
+            &data.deposit,
             &data.sellers,
+            &data.buyers,
             data.installments,
             data.expiration.as_deref(),
         )?;
 
         let next_contract_id = ContractStorage::next_contract_id();
 
+        // take buyer's deposit
+        if data.deposit.value_icp > 0 {
+            DepositOp::take_buyers_deposit(
+                &next_contract_id,
+                data.buyers.deposit_account,
+                data.deposit.value_icp,
+            )
+            .await?;
+        }
+
         // make contract
         let contract = Contract {
-            buyers: data.buyers,
-            currency: data.currency,
             id: next_contract_id.clone(),
+            buyers: data.buyers.principals,
+            currency: data.currency,
             initial_value: data.value,
             properties: data.properties,
             restricted_properties: data.restricted_properties,
@@ -215,6 +234,7 @@ impl Deferred {
             sellers: data.sellers,
             tokens: vec![],
             value: data.value,
+            deposit: data.deposit,
             expiration: data.expiration,
             agency: Agents::get_agency_by_wallet(caller()),
         };
@@ -240,17 +260,47 @@ impl Deferred {
             }
         };
 
+        let installments_value = contract.installments_value();
+
         // mint new tokens
         let (tokens, _) = Minter::mint(
             &contract_id,
             contract.sellers,
             contract.installments,
-            contract.value,
+            installments_value,
         )
         .await?;
 
         // update contract
         ContractStorage::sign_contract_and_mint_tokens(&contract_id, tokens)
+    }
+
+    /// Call for the contract seller to withdraw the buyer deposit in case the contract has been completely paid
+    pub async fn withdraw_contract_deposit(
+        contract_id: ID,
+        withdraw_subaccount: Option<Subaccount>,
+    ) -> DeferredResult<()> {
+        Inspect::inspect_is_seller(caller(), contract_id.clone())?;
+
+        CloseOp::withdraw_contract_deposit(contract_id, withdraw_subaccount).await
+    }
+
+    /// Close a contract which hasn't been completely paid and is expired.
+    ///
+    /// Only the agency can call this method.
+    ///
+    /// This method will burn all the tokens and will proportionally refund the NFTs owners, except the contract buyer.
+    pub async fn close_contract(contract_id: ID) -> DeferredResult<()> {
+        if Inspect::inspect_is_agent_for_contract(caller(), &contract_id).is_err()
+            && !Inspect::inspect_is_custodian(caller())
+        {
+            ic_cdk::trap("Unauthorized");
+        }
+        let contract = ContractStorage::get_contract(&contract_id).ok_or_else(|| {
+            DeferredError::CloseContract(CloseContractError::ContractNotFound(contract_id.clone()))
+        })?;
+
+        CloseOp::close_contract(contract).await
     }
 
     /// Update marketplace canister id and update the operator for all the tokens
@@ -265,6 +315,17 @@ impl Deferred {
 
         // update tokens
         if let Err(err) = ContractStorage::update_tokens_operator(canister) {
+            ic_cdk::trap(&err.to_string());
+        }
+    }
+
+    /// Update liquidity pool canister id
+    pub fn admin_set_ekoke_liquidity_pool_canister(canister: Principal) {
+        if !Inspect::inspect_is_custodian(caller()) {
+            ic_cdk::trap("Unauthorized");
+        }
+
+        if let Err(err) = Configuration::set_liquidity_pool_canister(canister) {
             ic_cdk::trap(&err.to_string());
         }
     }
@@ -310,6 +371,30 @@ impl Deferred {
         }
 
         RolesManager::remove_role(principal, role)
+    }
+
+    /// Canister subaccount for contract deposit
+    fn contract_deposit_subaccount(contract_id: &ID) -> Subaccount {
+        let contract_id = contract_id.0.to_bytes_be();
+        // if contract id is less than 32 bytes, pad it with zeros
+        let contract_id = if contract_id.len() < 32 {
+            let mut padded = vec![0; 32 - contract_id.len()];
+            padded.extend_from_slice(&contract_id);
+            padded
+        } else {
+            contract_id
+        };
+        let subaccount: Subaccount = contract_id.try_into().expect("invalid contract id");
+
+        subaccount
+    }
+
+    /// Canister ICRC account
+    fn canister_deposit_account(contract_id: &ID) -> Account {
+        Account {
+            owner: utils::id(),
+            subaccount: Some(Self::contract_deposit_subaccount(contract_id)),
+        }
     }
 }
 
@@ -621,9 +706,11 @@ impl Dip721 for Deferred {
 mod test {
 
     use std::time::Duration;
+    use std::u64;
 
-    use did::deferred::Seller;
-    use pretty_assertions::assert_eq;
+    use did::deferred::{Buyers, Deposit, Seller};
+    use pretty_assertions::{assert_eq, assert_ne};
+    use test_utils::{alice, bob_account};
 
     use self::test_utils::{bob, mock_agency};
     use super::test_utils::store_mock_contract;
@@ -636,6 +723,8 @@ mod test {
         Deferred::init(DeferredInitData {
             custodians: vec![caller()],
             ekoke_reward_pool_canister: caller(),
+            icp_ledger_canister: caller(),
+            liquidity_pool_canister: caller(),
             marketplace_canister: caller(),
         });
 
@@ -690,11 +779,18 @@ mod test {
     async fn test_should_register_and_sign_contract() {
         init_canister();
         let contract = ContractRegistration {
-            buyers: vec![caller()],
+            buyers: Buyers {
+                principals: vec![caller()],
+                deposit_account: bob_account(),
+            },
             currency: "EUR".to_string(),
             installments: 10,
             properties: vec![],
             restricted_properties: vec![],
+            deposit: Deposit {
+                value_fiat: 20,
+                value_icp: 100,
+            },
             r#type: did::deferred::ContractType::Financing,
             sellers: vec![Seller {
                 principal: caller(),
@@ -704,23 +800,36 @@ mod test {
             expiration: Some("2048-01-01".to_string()),
         };
 
-        assert_eq!(Deferred::register_contract(contract).unwrap(), 0_u64);
+        assert_eq!(Deferred::register_contract(contract).await.unwrap(), 0_u64);
         assert_eq!(Deferred::dip721_total_supply(), Nat::from(0_u64));
         assert_eq!(Deferred::get_unsigned_contracts(), vec![Nat::from(0_u64)]);
+
+        // sign and get total supply
         assert!(Deferred::sign_contract(0_u64.into()).await.is_ok());
         assert_eq!(Deferred::get_signed_contracts(), vec![Nat::from(0_u64)]);
         assert_eq!(Deferred::dip721_total_supply(), Nat::from(10_u64));
+
+        // verify installment value is 8
+        let token = ContractStorage::get_token(&0_u64.into()).unwrap();
+        assert_eq!(token.value, 8);
     }
 
     #[tokio::test]
     async fn test_should_increment_contract_value() {
         init_canister();
         let contract = ContractRegistration {
-            buyers: vec![caller()],
+            buyers: Buyers {
+                principals: vec![caller()],
+                deposit_account: bob_account(),
+            },
             currency: "EUR".to_string(),
             installments: 10,
             properties: vec![],
             restricted_properties: vec![],
+            deposit: Deposit {
+                value_fiat: 20,
+                value_icp: 100,
+            },
             r#type: did::deferred::ContractType::Financing,
             sellers: vec![Seller {
                 principal: caller(),
@@ -729,7 +838,7 @@ mod test {
             value: 100,
             expiration: Some("2048-01-01".to_string()),
         };
-        assert_eq!(Deferred::register_contract(contract).unwrap(), 0_u64);
+        assert_eq!(Deferred::register_contract(contract).await.unwrap(), 0_u64);
         assert!(Deferred::sign_contract(0_u64.into()).await.is_ok());
 
         // increment value
@@ -737,6 +846,118 @@ mod test {
             .await
             .is_ok());
         assert_eq!(Deferred::dip721_total_supply(), Nat::from(20_u64));
+    }
+
+    #[tokio::test]
+    async fn test_should_withdraw_contract_deposit() {
+        init_canister();
+
+        let contract_id = 1;
+        test_utils::store_mock_contract_with(
+            &[1, 2, 3],
+            contract_id,
+            |contract| {
+                contract.value = 400_000;
+                contract.deposit = Deposit {
+                    value_fiat: 10000,
+                    value_icp: 100_000_000,
+                };
+                contract.sellers = vec![
+                    Seller {
+                        principal: caller(),
+                        quota: 50,
+                    },
+                    Seller {
+                        principal: bob(),
+                        quota: 50,
+                    },
+                ];
+            },
+            |token| {
+                token.is_burned = true;
+                token.owner = Some(caller());
+            },
+        );
+
+        // withdraw deposit
+        assert!(
+            Deferred::withdraw_contract_deposit(contract_id.into(), None)
+                .await
+                .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_should_not_withdraw_contract_deposit_if_not_burned_yet() {
+        init_canister();
+
+        let contract_id = 1;
+        test_utils::store_mock_contract_with(
+            &[1, 2, 3],
+            contract_id,
+            |contract| {
+                contract.deposit = Deposit {
+                    value_fiat: 10000,
+                    value_icp: 100_000_000,
+                };
+                contract.sellers = vec![
+                    Seller {
+                        principal: caller(),
+                        quota: 50,
+                    },
+                    Seller {
+                        principal: bob(),
+                        quota: 50,
+                    },
+                ];
+            },
+            |token| token.is_burned = false,
+        );
+
+        // withdraw deposit
+        assert!(
+            Deferred::withdraw_contract_deposit(contract_id.into(), None)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_should_not_withdraw_contract_deposit_if_not_seller() {
+        init_canister();
+
+        let contract_id = 1;
+        test_utils::store_mock_contract_with(
+            &[1, 2, 3],
+            contract_id,
+            |contract| {
+                contract.deposit = Deposit {
+                    value_fiat: 10000,
+                    value_icp: 100,
+                };
+                contract.sellers = vec![
+                    Seller {
+                        principal: alice(),
+                        quota: 50,
+                    },
+                    Seller {
+                        principal: bob(),
+                        quota: 50,
+                    },
+                ];
+            },
+            |token| {
+                token.is_burned = true;
+                token.owner = Some(alice());
+            },
+        );
+
+        // withdraw deposit
+        assert!(
+            Deferred::withdraw_contract_deposit(contract_id.into(), None)
+                .await
+                .is_err()
+        );
     }
 
     #[test]
@@ -1083,11 +1304,18 @@ mod test {
     async fn test_should_set_and_get_restricted_property() {
         init_canister();
         let contract = ContractRegistration {
-            buyers: vec![caller()],
+            buyers: Buyers {
+                principals: vec![caller()],
+                deposit_account: bob_account(),
+            },
             currency: "EUR".to_string(),
             installments: 10,
             properties: vec![],
             restricted_properties: vec![],
+            deposit: Deposit {
+                value_fiat: 10,
+                value_icp: 100,
+            },
             r#type: did::deferred::ContractType::Financing,
             sellers: vec![Seller {
                 principal: caller(),
@@ -1097,7 +1325,7 @@ mod test {
             expiration: Some("2048-01-01".to_string()),
         };
 
-        assert_eq!(Deferred::register_contract(contract).unwrap(), 0_u64);
+        assert_eq!(Deferred::register_contract(contract).await.unwrap(), 0_u64);
         assert_eq!(Deferred::dip721_total_supply(), Nat::from(0_u64));
         assert_eq!(Deferred::get_unsigned_contracts(), vec![Nat::from(0_u64)]);
         assert!(Deferred::sign_contract(0_u64.into()).await.is_ok());
@@ -1118,10 +1346,22 @@ mod test {
         assert_eq!(restricted_properties.len(), 1);
     }
 
+    #[test]
+    fn test_should_make_subaccount_from_contract_id() {
+        let subaccount_a = Deferred::contract_deposit_subaccount(&ID::from(1u64));
+        let subaccount_b = Deferred::contract_deposit_subaccount(&ID::from(2u64));
+        let subaccount_c = Deferred::contract_deposit_subaccount(&ID::from(u64::MAX));
+
+        assert_ne!(subaccount_a, subaccount_b);
+        assert_ne!(subaccount_a, subaccount_c);
+    }
+
     fn init_canister() {
         Deferred::init(DeferredInitData {
             custodians: vec![caller()],
+            icp_ledger_canister: caller(),
             ekoke_reward_pool_canister: caller(),
+            liquidity_pool_canister: caller(),
             marketplace_canister: caller(),
         });
     }

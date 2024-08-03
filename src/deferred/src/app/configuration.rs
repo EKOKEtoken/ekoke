@@ -7,9 +7,9 @@ use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableCell};
 
 use crate::app::memory::{
-    CREATED_AT_MEMORY_ID, EKOKE_REWARD_POOL_CANISTER_MEMORY_ID, LOGO_MEMORY_ID,
-    MARKETPLACE_CANISTER_MEMORY_ID, MEMORY_MANAGER, NAME_MEMORY_ID, SYMBOL_MEMORY_ID,
-    UPGRADED_AT_MEMORY_ID,
+    CREATED_AT_MEMORY_ID, EKOKE_REWARD_POOL_CANISTER_MEMORY_ID, ICP_LEDGER_CANISTER_MEMORY_ID,
+    LIQUIDITY_POOL_CANISTER_MEMORY_ID, LOGO_MEMORY_ID, MARKETPLACE_CANISTER_MEMORY_ID,
+    MEMORY_MANAGER, NAME_MEMORY_ID, SYMBOL_MEMORY_ID, UPGRADED_AT_MEMORY_ID,
 };
 use crate::constants::{DEFAULT_LOGO, DEFAULT_NAME, DEFAULT_SYMBOL};
 
@@ -22,6 +22,16 @@ thread_local! {
     /// Marketplace Canister principal
     static MARKETPLACE_CANISTER: RefCell<StableCell<StorablePrincipal, VirtualMemory<DefaultMemoryImpl>>> =
         RefCell::new(StableCell::new(MEMORY_MANAGER.with(|mm| mm.get(MARKETPLACE_CANISTER_MEMORY_ID)), Principal::anonymous().into()).unwrap()
+    );
+
+    /// ICP ledger Canister principal
+    static ICP_LEDGER_CANISTER: RefCell<StableCell<StorablePrincipal, VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableCell::new(MEMORY_MANAGER.with(|mm| mm.get(ICP_LEDGER_CANISTER_MEMORY_ID)), Principal::anonymous().into()).unwrap()
+    );
+
+    /// ICP ledger Canister principal
+    static LIQUIDITY_POOL_CANISTER: RefCell<StableCell<StorablePrincipal, VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableCell::new(MEMORY_MANAGER.with(|mm| mm.get(LIQUIDITY_POOL_CANISTER_MEMORY_ID)), Principal::anonymous().into()).unwrap()
     );
 
     /// Contract logo
@@ -129,6 +139,30 @@ impl Configuration {
     pub fn get_marketplace_canister() -> Principal {
         MARKETPLACE_CANISTER.with_borrow(|cell| *cell.get().as_principal())
     }
+
+    pub fn set_icp_ledger_canister(canister: Principal) -> DeferredResult<()> {
+        ICP_LEDGER_CANISTER
+            .with_borrow_mut(|cell| cell.set(StorablePrincipal::from(canister)))
+            .map_err(|_| DeferredError::StorageError)?;
+
+        Ok(())
+    }
+
+    pub fn get_icp_ledger_canister() -> Principal {
+        ICP_LEDGER_CANISTER.with_borrow(|cell| *cell.get().as_principal())
+    }
+
+    pub fn set_liquidity_pool_canister(canister: Principal) -> DeferredResult<()> {
+        LIQUIDITY_POOL_CANISTER
+            .with_borrow_mut(|cell| cell.set(StorablePrincipal::from(canister)))
+            .map_err(|_| DeferredError::StorageError)?;
+
+        Ok(())
+    }
+
+    pub fn get_liquidity_pool_canister() -> Principal {
+        LIQUIDITY_POOL_CANISTER.with_borrow(|cell| *cell.get().as_principal())
+    }
 }
 
 #[cfg(test)]
@@ -202,5 +236,31 @@ mod test {
         );
         assert!(Configuration::set_marketplace_canister(principal).is_ok());
         assert_eq!(Configuration::get_marketplace_canister(), principal);
+    }
+
+    #[test]
+    fn test_should_get_and_set_icp_ledger_canister() {
+        let principal =
+            Principal::from_text("zrrb4-gyxmq-nx67d-wmbky-k6xyt-byhmw-tr5ct-vsxu4-nuv2g-6rr65-aae")
+                .unwrap();
+        assert_eq!(
+            Configuration::get_icp_ledger_canister(),
+            Principal::anonymous()
+        );
+        assert!(Configuration::set_icp_ledger_canister(principal).is_ok());
+        assert_eq!(Configuration::get_icp_ledger_canister(), principal);
+    }
+
+    #[test]
+    fn test_should_get_and_set_liquidity_pool_canister() {
+        let principal =
+            Principal::from_text("zrrb4-gyxmq-nx67d-wmbky-k6xyt-byhmw-tr5ct-vsxu4-nuv2g-6rr65-aae")
+                .unwrap();
+        assert_eq!(
+            Configuration::get_liquidity_pool_canister(),
+            Principal::anonymous()
+        );
+        assert!(Configuration::set_liquidity_pool_canister(principal).is_ok());
+        assert_eq!(Configuration::get_liquidity_pool_canister(), principal);
     }
 }

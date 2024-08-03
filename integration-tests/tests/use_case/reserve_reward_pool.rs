@@ -1,8 +1,8 @@
 use candid::Nat;
-use did::deferred::{ContractRegistration, ContractType, Seller};
+use did::deferred::{Buyers, ContractRegistration, ContractType, Deposit, Seller};
 use dip721_rs::GenericValue;
 use icrc::icrc1::account::Account;
-use integration_tests::actor::{admin, alice};
+use integration_tests::actor::{admin, alice, bob};
 use integration_tests::client::{DeferredClient, EkokeRewardPoolClient, IcrcLedgerClient};
 use integration_tests::{ekoke_to_e8s, TestEnv};
 
@@ -22,7 +22,14 @@ fn test_should_reserve_a_reward_pool_on_ekoke() {
             principal: alice(),
             quota: 100,
         }],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments,
@@ -33,6 +40,12 @@ fn test_should_reserve_a_reward_pool_on_ekoke() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     // call register
     let contract_id = deferred_client

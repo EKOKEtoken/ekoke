@@ -21,6 +21,7 @@ mod inspect;
 mod utils;
 
 use app::Deferred;
+use icrc::icrc1::account::Subaccount;
 
 #[init]
 pub fn init(init_data: DeferredInitData) {
@@ -36,8 +37,8 @@ pub fn post_upgrade() {
 
 #[update]
 #[candid_method(update)]
-pub fn register_contract(data: ContractRegistration) -> DeferredResult<Nat> {
-    Deferred::register_contract(data)
+pub async fn register_contract(data: ContractRegistration) -> DeferredResult<Nat> {
+    Deferred::register_contract(data).await
 }
 
 #[update]
@@ -128,8 +129,29 @@ pub fn update_contract_buyers(contract_id: ID, buyers: Vec<Principal>) -> Deferr
 
 #[update]
 #[candid_method(update)]
+pub async fn withdraw_contract_deposit(
+    contract_id: ID,
+    withdraw_subaccount: Option<Subaccount>,
+) -> DeferredResult<()> {
+    Deferred::withdraw_contract_deposit(contract_id, withdraw_subaccount).await
+}
+
+#[update]
+#[candid_method(update)]
+pub async fn close_contract(contract_id: ID) -> DeferredResult<()> {
+    Deferred::close_contract(contract_id).await
+}
+
+#[update]
+#[candid_method(update)]
 pub fn admin_set_ekoke_reward_pool_canister(canister_id: Principal) {
     Deferred::admin_set_ekoke_reward_pool_canister(canister_id)
+}
+
+#[update]
+#[candid_method(update)]
+pub fn admin_set_ekoke_liquidity_pool_canister(canister_id: Principal) {
+    Deferred::admin_set_ekoke_liquidity_pool_canister(canister_id)
 }
 
 #[update]

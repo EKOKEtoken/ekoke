@@ -19,7 +19,7 @@ impl LedgerClient {
 
     pub async fn transfer(recipient: Account, amount: Ekoke) -> EkokeResult<Nat> {
         Self::client()
-            .icrc1_transfer(recipient, amount)
+            .icrc1_transfer(recipient, amount, None)
             .await
             .map_err(Self::map_err)?
             .map_err(EkokeError::Icrc1Transfer)

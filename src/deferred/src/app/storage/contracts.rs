@@ -464,13 +464,29 @@ impl ContractStorage {
     pub fn total_supply() -> u64 {
         with_tokens(|tokens| tokens.len())
     }
+
+    #[cfg(test)]
+    pub fn mut_token<F>(token_id: &TokenIdentifier, f: F) -> DeferredResult<()>
+    where
+        F: Fn(&mut Token) -> DeferredResult<()>,
+    {
+        with_token_mut(token_id, f)
+    }
+
+    #[cfg(test)]
+    pub fn mut_contract<F>(contract_id: &ID, f: F) -> DeferredResult<()>
+    where
+        F: Fn(&mut Contract) -> DeferredResult<()>,
+    {
+        with_contract_mut(contract_id, f)
+    }
 }
 
 #[cfg(test)]
 mod test {
 
     use candid::Principal;
-    use did::deferred::{RestrictionLevel, Seller};
+    use did::deferred::{Deposit, RestrictionLevel, Seller};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -814,6 +830,10 @@ mod test {
             is_signed: false,
             initial_value: 250_000,
             value: 250_000,
+            deposit: Deposit {
+                value_fiat: 50_000,
+                value_icp: 100,
+            },
             currency: "EUR".to_string(),
             properties: vec![(
                 "contract:city".to_string(),

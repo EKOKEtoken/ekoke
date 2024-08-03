@@ -1,13 +1,13 @@
 use did::deferred::{Buyers, ContractRegistration, ContractType, Deposit, GenericValue, Seller};
 use icrc::icrc1::account::Account;
 use integration_tests::actor::{admin, alice, bob};
-use integration_tests::client::DeferredClient;
+use integration_tests::client::{DeferredClient, IcrcLedgerClient};
 use integration_tests::TestEnv;
 use pretty_assertions::assert_eq;
 
 #[test]
 #[serial_test::serial]
-fn test_as_seller_i_can_set_the_contract_buyers() {
+fn test_as_agency_i_can_register_contract() {
     let env = TestEnv::init();
     let deferred_client = DeferredClient::from(&env);
 
@@ -35,11 +35,12 @@ fn test_as_seller_i_can_set_the_contract_buyers() {
         restricted_properties: vec![],
         expiration: None,
     };
+    let deposit_value_icp = registration_data.deposit.value_icp;
     // approve deposit
     crate::helper::contract_deposit(
         &env,
         registration_data.buyers.deposit_account,
-        registration_data.deposit.value_icp,
+        deposit_value_icp,
     );
 
     // call register
@@ -51,24 +52,13 @@ fn test_as_seller_i_can_set_the_contract_buyers() {
     let res = deferred_client.sign_contract(contract_id.clone());
     assert!(res.is_ok());
 
-    // update buyers
-    assert!(deferred_client
-        .update_contract_buyers(alice(), contract_id, vec![bob()])
-        .is_ok());
-    // get contract buyers
-    let token = deferred_client.token_metadata(0_u64.into()).unwrap();
-    let buyers = token
-        .properties
-        .iter()
-        .find(|(k, _)| k == "contract:buyers")
-        .unwrap()
-        .1
-        .clone();
-    assert_eq!(
-        buyers,
-        GenericValue::NestedContent(vec![(
-            "contract:buyer".to_string(),
-            GenericValue::Principal(bob())
-        )])
-    );
+    // verify deposit
+    let icp_ledger_client = IcrcLedgerClient::new(env.icp_ledger_id, &env);
+    let subaccount = crate::helper::contract_subaccount(&contract_id);
+
+    let current_canister_balance = icp_ledger_client.icrc1_balance_of(Account {
+        owner: env.deferred_id,
+        subaccount: Some(subaccount),
+    });
+    assert_eq!(current_canister_balance, deposit_value_icp);
 }

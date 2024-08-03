@@ -24,6 +24,14 @@ type BuyError = variant {
   CallerAlreadyOwnsToken;
   IcpAllowanceExpired;
 };
+type CloseContractError = variant {
+  ContractPaid : nat;
+  LiquidityPoolHasNotEnoughIcp : record { available : nat; required : nat };
+  ContractNotFound : nat;
+  ContractNotExpired : nat;
+  RefundInvestors : TransferError;
+  DepositTransferFailed : TransferError;
+};
 type ConfigurationError = variant { AdminsCantBeEmpty; AnonymousAdmin };
 type ConfigurationError_1 = variant {
   CustodialsCantBeEmpty;
@@ -32,7 +40,9 @@ type ConfigurationError_1 = variant {
 type DeferredError = variant {
   Nft : NftError;
   Ekoke : EkokeError;
+  Withdraw : WithdrawError;
   Configuration : ConfigurationError_1;
+  CloseContract : CloseContractError;
   Unauthorized;
   Token : TokenError;
   StorageError;
@@ -108,16 +118,22 @@ type TokenError = variant {
   ContractAlreadySigned : nat;
   ContractValueIsNotMultipleOfInstallments;
   TokenAlreadyExists : nat;
+  BadBuyerDepositAccount;
   TokensMismatch;
   ContractAlreadyExists : nat;
   ContractTokensShouldBeEmpty;
   TokenDoesNotBelongToContract : nat;
+  DepositAllowanceExpired;
   TokenNotFound : nat;
+  DepositAllowanceNotEnough : record { available : nat; required : nat };
   ContractSellerQuotaIsNot100;
+  DepositRejected : TransferFromError;
   ContractNotFound : nat;
   CannotCloseContract;
+  ContractValueIsLessThanDeposit;
   ContractNotSigned : nat;
   ContractHasNoSeller;
+  ContractHasNoBuyer;
   BadContractExpiration;
   ContractHasNoTokens;
   TokenIsBurned : nat;
@@ -144,6 +160,12 @@ type TransferFromError = variant {
   CreatedInFuture : record { ledger_time : nat64 };
   TooOld;
   InsufficientFunds : record { balance : nat };
+};
+type WithdrawError = variant {
+  InvalidTransferAmount : record { nat64; nat8 };
+  ContractNotFound : nat;
+  DepositTransferFailed : TransferError;
+  ContractNotPaid : nat;
 };
 service : (MarketplaceInitData) -> {
   admin_cycles : () -> (nat) query;

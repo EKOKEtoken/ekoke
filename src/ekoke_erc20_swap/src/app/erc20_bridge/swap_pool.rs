@@ -23,7 +23,7 @@ impl SwapPool {
     pub async fn withdraw(to: Account, amount: Ekoke) -> EkokeResult<()> {
         let ledger_client = IcrcLedgerClient::new(Configuration::get_ledger_canister());
         ledger_client
-            .icrc1_transfer(to, amount)
+            .icrc1_transfer(to, amount, None)
             .await
             .map_err(|(code, msg)| EkokeError::CanisterCall(code, msg))??;
 

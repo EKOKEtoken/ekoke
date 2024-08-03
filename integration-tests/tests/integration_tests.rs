@@ -1,3 +1,4 @@
+mod helper;
 mod http;
 mod inspect;
 mod use_case;

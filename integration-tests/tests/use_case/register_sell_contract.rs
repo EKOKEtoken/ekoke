@@ -1,5 +1,8 @@
 use candid::Nat;
-use did::deferred::{Agency, ContractRegistration, ContractType, GenericValue, Seller};
+use did::deferred::{
+    Agency, Buyers, ContractRegistration, ContractType, Deposit, GenericValue, Seller,
+};
+use icrc::icrc1::account::Account;
 use integration_tests::actor::{admin, alice, bob};
 use integration_tests::client::DeferredClient;
 use integration_tests::TestEnv;
@@ -23,7 +26,14 @@ fn test_as_seller_i_can_register_a_sell_contract() {
                 quota: 50,
             },
         ],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -34,6 +44,15 @@ fn test_as_seller_i_can_register_a_sell_contract() {
         restricted_properties: vec![],
         expiration: None,
     };
+
+    let expected_token_value = (registration_data.value - registration_data.deposit.value_fiat)
+        / registration_data.installments;
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     // register agency for admin
     let agency = Agency {
@@ -96,7 +115,11 @@ fn test_as_seller_i_can_register_a_sell_contract() {
         .unwrap()
         .1
         .clone();
-    assert_eq!(token_value, GenericValue::NatContent(100_u64.into()));
+
+    assert_eq!(
+        token_value,
+        GenericValue::NatContent(expected_token_value.into())
+    );
 
     let token = deferred_client.token_metadata(Nat::from(2000_u64)).unwrap();
     assert_eq!(token.owner.unwrap(), bob());

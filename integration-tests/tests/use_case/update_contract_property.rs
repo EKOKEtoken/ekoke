@@ -1,4 +1,5 @@
-use did::deferred::{ContractRegistration, ContractType, GenericValue, Seller};
+use did::deferred::{Buyers, ContractRegistration, ContractType, Deposit, GenericValue, Seller};
+use icrc::icrc1::account::Account;
 use integration_tests::actor::{admin, alice, bob};
 use integration_tests::client::DeferredClient;
 use integration_tests::TestEnv;
@@ -22,7 +23,14 @@ fn test_should_update_contract_property() {
                 quota: 50,
             },
         ],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -39,6 +47,12 @@ fn test_should_update_contract_property() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     // call register
     let contract_id = deferred_client

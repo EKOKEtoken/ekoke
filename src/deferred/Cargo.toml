@@ -26,6 +26,7 @@ getrandom = { workspace = true, features = ["custom"] }
 ic-cdk = { workspace = true }
 ic-cdk-macros = { workspace = true }
 ic-stable-structures = { workspace = true }
+icrc = { path = "../icrc" }
 itertools = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }

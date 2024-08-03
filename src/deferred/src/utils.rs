@@ -27,6 +27,18 @@ pub fn cycles() -> Nat {
     }
 }
 
+/// Returns canister id
+pub fn id() -> Principal {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        Principal::from_text("lj532-6iaaa-aaaah-qcc7a-cai").unwrap()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        ic_cdk::api::id()
+    }
+}
+
 pub fn caller() -> Principal {
     #[cfg(not(target_arch = "wasm32"))]
     {

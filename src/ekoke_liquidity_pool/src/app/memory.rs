@@ -7,6 +7,7 @@ pub const LIQUIDITY_POOL_ACCOUNT_MEMORY_ID: MemoryId = MemoryId::new(10);
 // Configuration
 pub const ADMINS_MEMORY_ID: MemoryId = MemoryId::new(20);
 pub const ICP_LEDGER_CANISTER_MEMORY_ID: MemoryId = MemoryId::new(21);
+pub const DEFERRED_CANISTER_MEMORY_ID: MemoryId = MemoryId::new(22);
 
 thread_local! {
     /// Memory manager

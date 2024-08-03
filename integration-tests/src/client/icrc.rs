@@ -16,6 +16,17 @@ impl<'a> IcrcLedgerClient<'a> {
         Self { principal, env }
     }
 
+    pub fn icrc1_fee(&self) -> Nat {
+        self.env
+            .query(
+                self.principal,
+                self.principal,
+                "icrc1_fee",
+                Encode!(&()).unwrap(),
+            )
+            .unwrap()
+    }
+
     pub fn icrc1_balance_of(&self, account: Account) -> Nat {
         self.env
             .query(

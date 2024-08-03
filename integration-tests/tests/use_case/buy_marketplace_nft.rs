@@ -1,4 +1,6 @@
-use did::deferred::{ContractRegistration, ContractType, GenericValue, Seller, ID};
+use did::deferred::{
+    Buyers, ContractRegistration, ContractType, Deposit, GenericValue, Seller, ID,
+};
 use icrc::icrc1::account::Account;
 use integration_tests::actor::{admin, alice, alice_account, bob, charlie, charlie_account};
 use integration_tests::client::{DeferredClient, IcrcLedgerClient, MarketplaceClient};
@@ -99,7 +101,7 @@ fn test_should_buy_marketplace_nft_as_contract_buyer() {
         .buy_token(alice(), &token_to_buy, &alice_account().subaccount)
         .is_ok());
 
-    // verify token owner is charlie
+    // verify token owner is None
     let token = deferred_client.get_token(&token_to_buy).unwrap().token;
     assert!(token.owner.is_none());
     // should be burned
@@ -120,7 +122,14 @@ fn setup_contract_marketplace(env: &TestEnv) -> ID {
             principal: bob(),
             quota: 100,
         }],
-        buyers: vec![alice()],
+        buyers: Buyers {
+            principals: vec![alice()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -131,6 +140,12 @@ fn setup_contract_marketplace(env: &TestEnv) -> ID {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
     // call register
     let contract_id = deferred_client
         .register_contract(admin(), registration_data)

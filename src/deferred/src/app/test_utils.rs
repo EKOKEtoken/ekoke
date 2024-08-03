@@ -1,7 +1,10 @@
 use candid::Principal;
-use did::deferred::{Agency, Contract, RestrictedProperty, RestrictionLevel, Seller, Token};
+use did::deferred::{
+    Agency, Contract, Deposit, RestrictedProperty, RestrictionLevel, Seller, Token,
+};
 use did::ID;
 use dip721_rs::TokenIdentifier;
+use icrc::icrc1::account::Account;
 
 use super::storage::ContractStorage;
 use crate::utils::caller;
@@ -40,6 +43,10 @@ pub fn mock_contract(id: u64, installments: u64) -> Contract {
         is_signed: false,
         initial_value: 250_000,
         value: 250_000,
+        deposit: Deposit {
+            value_fiat: 50_000,
+            value_icp: 100,
+        },
         currency: "EUR".to_string(),
         properties: vec![(
             "contract:city".to_string(),
@@ -130,4 +137,16 @@ pub fn alice() -> Principal {
 
 pub fn bob() -> Principal {
     Principal::from_text("bs5l3-6b3zu-dpqyj-p2x4a-jyg4k-goneb-afof2-y5d62-skt67-3756q-dqe").unwrap()
+}
+
+pub fn bob_account() -> Account {
+    Account::from(bob())
+}
+
+pub fn charlie() -> Principal {
+    Principal::from_text("vuwfz-pyaaa-aaaal-ai5da-cai").unwrap()
+}
+
+pub fn dylan() -> Principal {
+    Principal::from_text("vtxdn-caaaa-aaaal-ai5dq-cai").unwrap()
 }

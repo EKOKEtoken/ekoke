@@ -46,6 +46,7 @@ export type EkokeError = { 'Configuration' : ConfigurationError } |
 export interface EkokeLiquidityPoolInitData {
   'icp_ledger_canister' : Principal,
   'admins' : Array<Principal>,
+  'deferred_canister_id' : Principal,
 }
 export interface HttpRequest {
   'url' : string,
@@ -73,6 +74,8 @@ export type RejectionCode = { 'NoError' : null } |
   { 'CanisterReject' : null };
 export type Result = { 'Ok' : LiquidityPoolBalance } |
   { 'Err' : EkokeError };
+export type Result_1 = { 'Ok' : null } |
+  { 'Err' : TransferError };
 export type TransferError = {
     'GenericError' : { 'message' : string, 'error_code' : bigint }
   } |
@@ -97,10 +100,12 @@ export type TransferFromError = {
 export interface _SERVICE {
   'admin_cycles' : ActorMethod<[], bigint>,
   'admin_set_admins' : ActorMethod<[Array<Principal>], undefined>,
+  'admin_set_deferred_canister' : ActorMethod<[Principal], undefined>,
   'admin_set_icp_ledger_canister' : ActorMethod<[Principal], undefined>,
   'http_request' : ActorMethod<[HttpRequest], HttpResponse>,
   'liquidity_pool_accounts' : ActorMethod<[], LiquidityPoolAccounts>,
   'liquidity_pool_balance' : ActorMethod<[], Result>,
+  'refund_investors' : ActorMethod<[Array<[Principal, bigint]>], Result_1>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

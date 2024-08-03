@@ -3,7 +3,9 @@
 //! Deferred inspect message handler
 
 use candid::{Nat, Principal};
-use did::deferred::{Contract, DeferredError, DeferredResult, Seller, Token, TokenError};
+use did::deferred::{
+    Buyers, Contract, DeferredError, DeferredResult, Deposit, Seller, Token, TokenError,
+};
 use did::ID;
 use dip721_rs::NftError;
 
@@ -163,7 +165,9 @@ impl Inspect {
     pub fn inspect_register_contract(
         caller: Principal,
         value: u64,
+        deposit: &Deposit,
         sellers: &[Seller],
+        buyers: &Buyers,
         installments: u64,
         expiration: Option<&str>,
     ) -> DeferredResult<()> {
@@ -171,15 +175,36 @@ impl Inspect {
             return Err(DeferredError::Unauthorized);
         }
 
-        if sellers
-            .iter()
-            .any(|seller| seller.principal == Principal::anonymous())
+        if sellers.is_empty()
+            || sellers
+                .iter()
+                .any(|seller| seller.principal == Principal::anonymous())
         {
             return Err(DeferredError::Token(TokenError::ContractHasNoSeller));
         }
 
+        if buyers.principals.is_empty()
+            || buyers
+                .principals
+                .iter()
+                .any(|buyer| buyer == &Principal::anonymous())
+        {
+            return Err(DeferredError::Token(TokenError::ContractHasNoBuyer));
+        }
+
+        if buyers.deposit_account.owner == Principal::anonymous() {
+            return Err(DeferredError::Token(TokenError::BadBuyerDepositAccount));
+        }
+
+        if value < deposit.value_fiat {
+            return Err(DeferredError::Token(
+                TokenError::ContractValueIsLessThanDeposit,
+            ));
+        }
+        let installments_value = value - deposit.value_fiat;
+
         // verify value must be multiple of installments
-        if value % installments != 0 {
+        if installments_value % installments != 0 {
             return Err(DeferredError::Token(
                 TokenError::ContractValueIsNotMultipleOfInstallments,
             ));
@@ -256,10 +281,11 @@ impl Inspect {
 mod test {
 
     use did::deferred::{Role, Seller};
+    use icrc::icrc1::account::Account;
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::app::test_utils::{self, alice, bob, mock_agency};
+    use crate::app::test_utils::{self, alice, bob, bob_account, mock_agency};
     use crate::utils::caller;
 
     #[test]
@@ -528,10 +554,18 @@ mod test {
         assert!(Inspect::inspect_register_contract(
             caller,
             100,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 25,
+            },
             &[Seller {
                 principal: Principal::management_canister(),
                 quota: 100,
             }],
+            &Buyers {
+                principals: vec![bob()],
+                deposit_account: bob_account(),
+            },
             25,
             None,
         )
@@ -545,10 +579,18 @@ mod test {
         assert!(Inspect::inspect_register_contract(
             caller,
             110,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 10,
+            },
             &[Seller {
                 principal: Principal::management_canister(),
                 quota: 100,
             }],
+            &Buyers {
+                principals: vec![bob()],
+                deposit_account: bob_account(),
+            },
             25,
             None,
         )
@@ -562,10 +604,18 @@ mod test {
         assert!(Inspect::inspect_register_contract(
             caller,
             100,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 25,
+            },
             &[Seller {
                 principal: Principal::management_canister(),
                 quota: 100,
             }],
+            &Buyers {
+                principals: vec![bob()],
+                deposit_account: bob_account(),
+            },
             25,
             None,
         )
@@ -579,10 +629,18 @@ mod test {
         assert!(Inspect::inspect_register_contract(
             caller,
             100,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 25,
+            },
             &[Seller {
                 principal: Principal::management_canister(),
                 quota: 100,
             }],
+            &Buyers {
+                principals: vec![bob()],
+                deposit_account: bob_account(),
+            },
             25,
             None,
         )
@@ -596,10 +654,140 @@ mod test {
         assert!(Inspect::inspect_register_contract(
             caller,
             100,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 25,
+            },
             &[Seller {
                 principal: Principal::anonymous(),
                 quota: 100,
             }],
+            &Buyers {
+                principals: vec![bob()],
+                deposit_account: bob_account(),
+            },
+            25,
+            None,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_should_inspect_contract_register_if_sellers_is_empty() {
+        let caller = crate::utils::caller();
+        assert!(RolesManager::set_custodians(vec![caller]).is_ok());
+        assert!(Inspect::inspect_register_contract(
+            caller,
+            100,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 25,
+            },
+            &[],
+            &Buyers {
+                principals: vec![bob()],
+                deposit_account: bob_account(),
+            },
+            25,
+            None,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_should_inspect_contract_register_if_value_is_less_than_deposit() {
+        let caller = crate::utils::caller();
+        assert!(RolesManager::set_custodians(vec![caller]).is_ok());
+        assert!(Inspect::inspect_register_contract(
+            caller,
+            100,
+            &Deposit {
+                value_fiat: 200,
+                value_icp: 25,
+            },
+            &[Seller {
+                principal: Principal::management_canister(),
+                quota: 100,
+            }],
+            &Buyers {
+                principals: vec![bob()],
+                deposit_account: bob_account(),
+            },
+            25,
+            None,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_should_inspect_contract_register_if_buyer_is_anonymous() {
+        let caller = crate::utils::caller();
+        assert!(RolesManager::set_custodians(vec![caller]).is_ok());
+        assert!(Inspect::inspect_register_contract(
+            caller,
+            100,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 25,
+            },
+            &[Seller {
+                principal: Principal::management_canister(),
+                quota: 100,
+            }],
+            &Buyers {
+                principals: vec![Principal::anonymous()],
+                deposit_account: bob_account(),
+            },
+            25,
+            None,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_should_inspect_contract_register_if_buyers_is_empty() {
+        let caller = crate::utils::caller();
+        assert!(RolesManager::set_custodians(vec![caller]).is_ok());
+        assert!(Inspect::inspect_register_contract(
+            caller,
+            100,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 25,
+            },
+            &[Seller {
+                principal: Principal::management_canister(),
+                quota: 100,
+            }],
+            &Buyers {
+                principals: vec![],
+                deposit_account: bob_account(),
+            },
+            25,
+            None,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_should_inspect_contract_register_if_buyer_deposit_account_is_invalid() {
+        let caller = crate::utils::caller();
+        assert!(RolesManager::set_custodians(vec![caller]).is_ok());
+        assert!(Inspect::inspect_register_contract(
+            caller,
+            100,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 25,
+            },
+            &[Seller {
+                principal: Principal::management_canister(),
+                quota: 100,
+            }],
+            &Buyers {
+                principals: vec![bob()],
+                deposit_account: Account::from(Principal::anonymous()),
+            },
             25,
             None,
         )
@@ -613,6 +801,10 @@ mod test {
         assert!(Inspect::inspect_register_contract(
             caller,
             100,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 25,
+            },
             &[
                 Seller {
                     principal: Principal::management_canister(),
@@ -623,6 +815,10 @@ mod test {
                     quota: 40,
                 }
             ],
+            &Buyers {
+                principals: vec![bob()],
+                deposit_account: bob_account(),
+            },
             25,
             None,
         )
@@ -636,10 +832,18 @@ mod test {
         assert!(Inspect::inspect_register_contract(
             caller,
             100,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 25,
+            },
             &[Seller {
                 principal: Principal::management_canister(),
                 quota: 100,
             }],
+            &Buyers {
+                principals: vec![bob()],
+                deposit_account: bob_account(),
+            },
             25,
             None,
         )
@@ -653,10 +857,18 @@ mod test {
         assert!(Inspect::inspect_register_contract(
             caller,
             100,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 25,
+            },
             &[Seller {
                 principal: Principal::management_canister(),
                 quota: 100,
             }],
+            &Buyers {
+                principals: vec![bob()],
+                deposit_account: bob_account(),
+            },
             25,
             Some("2078-01-01"),
         )
@@ -664,10 +876,18 @@ mod test {
         assert!(Inspect::inspect_register_contract(
             caller,
             100,
+            &Deposit {
+                value_fiat: 25,
+                value_icp: 25,
+            },
             &[Seller {
                 principal: Principal::management_canister(),
                 quota: 100,
             }],
+            &Buyers {
+                principals: vec![bob()],
+                deposit_account: bob_account(),
+            },
             25,
             Some("2018-01-01"),
         )

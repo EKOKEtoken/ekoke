@@ -2,14 +2,16 @@
 //! backs the value of the Ekoke token.
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 
-use candid::Principal;
+use candid::{Nat, Principal};
 use did::ekoke::{EkokeError, EkokeResult};
 use did::ekoke_liquidity_pool::{LiquidityPoolAccounts, LiquidityPoolBalance};
 use did::StorableAccount;
 use ic_stable_structures::memory_manager::VirtualMemory;
 use ic_stable_structures::{DefaultMemoryImpl, StableCell};
 use icrc::icrc1::account::Account;
+use icrc::icrc1::transfer::TransferError;
 use icrc::IcrcLedgerClient;
 
 use crate::app::configuration::Configuration;
@@ -64,6 +66,36 @@ impl LiquidityPool {
             .map_err(|(code, msg)| EkokeError::CanisterCall(code, msg))?;
 
         Ok(LiquidityPoolBalance { icp: icp_balance })
+    }
+
+    /// Refund investors
+    pub async fn refund_investors(refunds: HashMap<Principal, Nat>) -> Result<(), TransferError> {
+        let icp_ledger_client = IcrcLedgerClient::from(Configuration::get_icp_ledger_canister());
+
+        let icp_fee = icp_ledger_client
+            .icrc1_fee()
+            .await
+            .expect("failed to get icp fee");
+
+        // verify the balance
+        let balance = Self::balance().await.expect("failed to get balance").icp;
+        let total_refund = refunds
+            .values()
+            .fold(Nat::from(0u64), |acc, x| acc + x.clone() + icp_fee.clone());
+
+        if balance < total_refund {
+            return Err(TransferError::InsufficientFunds { balance });
+        }
+
+        // for each investor, transfer the amount
+        for (investor, amount) in refunds {
+            icp_ledger_client
+                .icrc1_transfer(Account::from(investor), amount, None)
+                .await
+                .expect("icp ledger call failed")?;
+        }
+
+        Ok(())
     }
 }
 

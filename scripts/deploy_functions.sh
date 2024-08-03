@@ -8,12 +8,15 @@ deploy_deferred() {\
   DEFERRED_PRINCIPAL="$3"
   EKOKE_REWARD_POOL_PRINCIPAL="$4"
   MARKETPLACE_PRINCIPAL="$5"
-  ADMIN_PRINCIPAL="$6"
+  EKOKE_LIQUIDITY_POOL_PRINCIPAL="$6"
+  ADMIN_PRINCIPAL="$7"
 
   echo "deploying deferred canister $DEFERRED_PRINCIPAL"
 
   deferred_init_args="(record {
     ekoke_reward_pool_canister = principal \"$EKOKE_REWARD_POOL_PRINCIPAL\";
+    icp_ledger_canister = principal \"ryjl3-tyaaa-aaaaa-aaaba-cai\";
+    liquidity_pool_canister = principal \"$EKOKE_LIQUIDITY_POOL_PRINCIPAL\";
     marketplace_canister = principal \"$MARKETPLACE_PRINCIPAL\";
     custodians = vec { principal \"$ADMIN_PRINCIPAL\" };
   })"
@@ -82,12 +85,14 @@ deploy_ekoke_liquidity_pool() {
   INSTALL_MODE="$1"
   NETWORK="$2"
   EKOKE_LIQUIDITY_POOL_PRINCIPAL="$3"
-  ADMINS="$4"
+  DEFERRED_PRINCIPAL="$4"
+  ADMINS="$5"
 
   echo "deploying ekoke-liquidity-pool canister $EKOKE_LIQUIDITY_POOL_PRINCIPAL"
 
   ekoke_liquidity_pool_init_args="(record {
     admins = vec { $(for admin in $ADMINS; do echo "principal \"$admin\";"; done) };
+    deferred_canister = principal \"$DEFERRED_PRINCIPAL\";
     icp_ledger_canister = principal \"ryjl3-tyaaa-aaaaa-aaaba-cai\";
   })"
 

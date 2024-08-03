@@ -1,5 +1,6 @@
 use candid::{Nat, Principal};
 use ic_cdk::api::call::CallResult;
+use icrc_ledger_types::icrc1::account::Subaccount;
 use icrc_ledger_types::icrc1::transfer::TransferError;
 use icrc_ledger_types::icrc2::allowance::Allowance;
 use icrc_ledger_types::icrc2::approve::ApproveError;
@@ -63,6 +64,7 @@ impl IcrcLedgerClient {
         &self,
         to: Account,
         amount: Nat,
+        from_subaccount: Option<Subaccount>,
     ) -> CallResult<Result<Nat, TransferError>> {
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -72,7 +74,7 @@ impl IcrcLedgerClient {
         {
             let args = crate::icrc1::transfer::TransferArg {
                 to,
-                from_subaccount: None,
+                from_subaccount,
                 fee: None,
                 created_at_time: None,
                 memo: None,

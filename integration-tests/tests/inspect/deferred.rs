@@ -1,9 +1,11 @@
 use candid::{Encode, Nat};
 use did::deferred::{
-    Agency, ContractRegistration, ContractType, DeferredResult, GenericValue, Seller,
+    Agency, Buyers, ContractRegistration, ContractType, DeferredResult, Deposit, GenericValue,
+    Seller,
 };
 use did::ID;
 use dip721_rs::NftError;
+use icrc::icrc1::account::Account;
 use integration_tests::actor::{admin, alice, bob};
 use integration_tests::client::DeferredClient;
 use integration_tests::TestEnv;
@@ -86,7 +88,14 @@ fn test_should_inspect_update_contract_property() {
             principal: alice(),
             quota: 100,
         }],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -97,6 +106,12 @@ fn test_should_inspect_update_contract_property() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     // call register
     let contract_id = client
@@ -149,7 +164,14 @@ fn test_should_inspect_update_contract_property_is_not_authorized() {
             principal: alice(),
             quota: 100,
         }],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -160,6 +182,12 @@ fn test_should_inspect_update_contract_property_is_not_authorized() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     // call register
     let contract_id = client
@@ -198,7 +226,14 @@ fn test_should_inspect_update_contract_property_bad_key() {
                 quota: 50,
             },
         ],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -209,6 +244,12 @@ fn test_should_inspect_update_contract_property_bad_key() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     // call register
     let contract_id = client
@@ -241,7 +282,14 @@ fn test_should_inspect_update_contract_buyers() {
             principal: alice(),
             quota: 100,
         }],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -252,6 +300,12 @@ fn test_should_inspect_update_contract_buyers() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     // call register
     let contract_id = client
@@ -295,7 +349,14 @@ fn test_should_inspect_update_contract_buyers_not_seller() {
             principal: alice(),
             quota: 100,
         }],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -306,6 +367,12 @@ fn test_should_inspect_update_contract_buyers_not_seller() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     // call register
     let contract_id = client
@@ -332,7 +399,14 @@ fn test_should_inspect_register_contract() {
             principal: alice(),
             quota: 100,
         }],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -343,6 +417,12 @@ fn test_should_inspect_register_contract() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     let result: DeferredResult<ID> = env
         .update(
@@ -367,7 +447,14 @@ fn test_should_inspect_register_contract_unauthorized() {
             principal: alice(),
             quota: 100,
         }],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -378,6 +465,12 @@ fn test_should_inspect_register_contract_unauthorized() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     let result: anyhow::Result<DeferredResult<ID>> = env.update(
         env.deferred_id,
@@ -397,7 +490,14 @@ fn test_should_inspect_register_contract_no_sellers() {
     let registration_data = ContractRegistration {
         r#type: ContractType::Sell,
         sellers: vec![],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -408,6 +508,12 @@ fn test_should_inspect_register_contract_no_sellers() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     let result: anyhow::Result<DeferredResult<ID>> = env.update(
         env.deferred_id,
@@ -430,7 +536,14 @@ fn test_should_inspect_register_contract_installments_not_multiple() {
             principal: alice(),
             quota: 100,
         }],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 13,
@@ -441,6 +554,12 @@ fn test_should_inspect_register_contract_installments_not_multiple() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     let result: anyhow::Result<DeferredResult<ID>> = env.update(
         env.deferred_id,
@@ -463,7 +582,14 @@ fn test_should_inspect_register_contract_expired() {
             principal: alice(),
             quota: 100,
         }],
-        buyers: vec![],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 10,
@@ -474,6 +600,12 @@ fn test_should_inspect_register_contract_expired() {
         restricted_properties: vec![],
         expiration: Some("2021-01-01".to_string()),
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     let result: anyhow::Result<DeferredResult<ID>> = env.update(
         env.deferred_id,
@@ -518,7 +650,14 @@ fn test_should_inspect_sign_contract() {
             principal: alice(),
             quota: 100,
         }],
-        buyers: vec![bob()],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -529,6 +668,12 @@ fn test_should_inspect_sign_contract() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     let contract_id = client.register_contract(agent, registration_data).unwrap();
 
@@ -556,7 +701,14 @@ fn test_should_inspect_burn() {
             principal: alice(),
             quota: 100,
         }],
-        buyers: vec![bob()],
+        buyers: Buyers {
+            principals: vec![bob()],
+            deposit_account: Account::from(alice()),
+        },
+        deposit: Deposit {
+            value_fiat: 20_000,
+            value_icp: 100,
+        },
         value: 400_000,
         currency: "EUR".to_string(),
         installments: 400_000 / 100,
@@ -567,6 +719,12 @@ fn test_should_inspect_burn() {
         restricted_properties: vec![],
         expiration: None,
     };
+    // approve deposit
+    crate::helper::contract_deposit(
+        &env,
+        registration_data.buyers.deposit_account,
+        registration_data.deposit.value_icp,
+    );
 
     let contract_id = client
         .register_contract(admin(), registration_data)

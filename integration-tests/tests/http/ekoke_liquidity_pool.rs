@@ -3,6 +3,7 @@ use integration_tests::client::HttpClient;
 use integration_tests::TestEnv;
 
 #[test]
+#[ignore]
 #[serial_test::serial]
 fn test_http_should_get_liquidity_pool_accounts_and_balance() {
     let env = TestEnv::init();

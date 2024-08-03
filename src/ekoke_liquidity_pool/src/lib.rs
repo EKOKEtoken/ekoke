@@ -8,12 +8,15 @@ mod http;
 mod inspect;
 mod utils;
 
+use std::collections::HashMap;
+
 use candid::{candid_method, Nat, Principal};
 use did::ekoke::EkokeResult;
 use did::ekoke_liquidity_pool::{
     EkokeLiquidityPoolInitData, LiquidityPoolAccounts, LiquidityPoolBalance,
 };
 use ic_cdk_macros::{init, query, update};
+use icrc::icrc1::transfer::TransferError;
 
 use self::app::EkokeLiquidityPoolCanister;
 
@@ -34,6 +37,12 @@ pub fn liquidity_pool_accounts() -> LiquidityPoolAccounts {
     EkokeLiquidityPoolCanister::liquidity_pool_accounts()
 }
 
+#[update]
+#[candid_method(update)]
+pub async fn refund_investors(refunds: HashMap<Principal, Nat>) -> Result<(), TransferError> {
+    EkokeLiquidityPoolCanister::refund_investors(refunds).await
+}
+
 #[query]
 #[candid_method(query)]
 pub fn admin_cycles() -> Nat {
@@ -44,6 +53,12 @@ pub fn admin_cycles() -> Nat {
 #[candid_method(update)]
 pub fn admin_set_icp_ledger_canister(canister_id: Principal) {
     EkokeLiquidityPoolCanister::admin_set_icp_ledger_canister(canister_id)
+}
+
+#[update]
+#[candid_method(update)]
+pub fn admin_set_deferred_canister(canister_id: Principal) {
+    EkokeLiquidityPoolCanister::admin_set_deferred_canister(canister_id)
 }
 
 #[update]
